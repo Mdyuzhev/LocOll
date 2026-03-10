@@ -21,6 +21,11 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
 
+      - name: Clean up stale containers
+        run: |
+          docker stop locoll-frontend 2>/dev/null || true
+          docker rm locoll-frontend 2>/dev/null || true
+
       - name: Build and start frontend
         run: |
           cd /opt/locoll
