@@ -4,41 +4,60 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: deploy-locoll
+  cancel-in-progress: true
+
 jobs:
   deploy:
+    name: Deploy to Homelab
     runs-on: self-hosted
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Stop old containers
-        run: docker-compose down || true
-
-      - name: Build and start
-        run: docker-compose up -d --build
-
-      - name: Wait for Ollama healthcheck
+      - name: Pull latest code
         run: |
-          echo "Waiting for Ollama to be ready..."
+          cd /opt/locoll
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Build and start containers
+        run: |
+          cd /opt/locoll
+          docker-compose down || true
+          docker-compose up -d --build
+
+      - name: Wait for Ollama to be healthy
+        run: |
+          cd /opt/locoll
           for i in $(seq 1 30); do
             if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
-              echo "Ollama is ready!"
+              echo "Ollama: OK"
               exit 0
             fi
+            echo "Waiting for Ollama... ($i/30)"
             sleep 2
           done
-          echo "Ollama did not start in time"
+          echo "Ollama failed to start"
+          docker-compose logs ollama --tail=20
           exit 1
 
       - name: Verify frontend
         run: |
-          if curl -sf http://localhost:8080 > /dev/null 2>&1; then
-            echo "Frontend is up at http://localhost:8080"
-          else
-            echo "Frontend not responding"
-            exit 1
-          fi
+          cd /opt/locoll
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8080 > /dev/null 2>&1; then
+              echo "Frontend: OK"
+              exit 0
+            fi
+            echo "Waiting for frontend... ($i/10)"
+            sleep 2
+          done
+          echo "Frontend failed"
+          docker-compose logs frontend --tail=20
+          exit 1
 
-      - name: Show running containers
-        run: docker-compose ps
+      - name: Show status
+        run: |
+          cd /opt/locoll
+          docker-compose ps
