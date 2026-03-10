@@ -4,3 +4,12 @@
 
 # GitHub Actions runner
 actions-runner/
+
+# Go
+tmp/
+data/
+*.exe
+
+# WASM (built during Docker build)
+static/app.wasm
+static/wasm_exec.js

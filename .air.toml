@@ -1,0 +1,8 @@
+[build]
+cmd = "go build -o ./tmp/portal ./cmd/portal/"
+bin = "./tmp/portal"
+include_ext = ["go", "templ"]
+exclude_dir = ["tmp", "static", "wasm", "frontend"]
+
+[misc]
+clean_on_exit = true
