@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocOll — Локальный ИИ-Ассистент</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── Шапка ─────────────────────────────────────────── */
+    .header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3144;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: #7c8cf8;
+      letter-spacing: -0.5px;
+    }
+    .logo span { color: #4ade80; }
+
+    .model-select {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .model-select label { font-size: 13px; color: #94a3b8; }
+
+    select {
+      background: #252836;
+      color: #e2e8f0;
+      border: 1px solid #3d4166;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+    }
+    select:focus { border-color: #7c8cf8; }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      transition: background 0.3s;
+    }
+    .status-dot.online { background: #4ade80; }
+
+    .pull-btn {
+      background: #252836;
+      border: 1px solid #3d4166;
+      color: #94a3b8;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pull-btn:hover { border-color: #7c8cf8; color: #7c8cf8; }
+    .pull-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ─── Быстрые промпты ────────────────────────────────── */
+    .quick-prompts {
+      padding: 10px 20px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      background: #141620;
+      border-bottom: 1px solid #2d3144;
+    }
+
+    .chip {
+      background: #1e2235;
+      border: 1px solid #2d3144;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .chip:hover { border-color: #7c8cf8; color: #c7d2fe; background: #252a42; }
+
+    /* ─── Чат ────────────────────────────────────────────── */
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      justify-content: flex-end;
+    }
+
+    .chat-container::-webkit-scrollbar { width: 4px; }
+    .chat-container::-webkit-scrollbar-track { background: transparent; }
+    .chat-container::-webkit-scrollbar-thumb { background: #2d3144; border-radius: 2px; }
+
+    /* Приветствие */
+    .welcome {
+      text-align: center;
+      padding: 40px 20px;
+      color: #4a5568;
+    }
+    .welcome h2 { font-size: 24px; color: #7c8cf8; margin-bottom: 8px; }
+    .welcome p { font-size: 14px; line-height: 1.6; }
+
+    /* Сообщения */
+    .message {
+      display: flex;
+      gap: 12px;
+      max-width: 800px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    .message.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    .avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .avatar.ai { background: #252a42; border: 1px solid #3d4166; }
+    .avatar.user { background: #312e6b; border: 1px solid #4c46a8; }
+
+    .bubble {
+      background: #1a1d27;
+      border: 1px solid #2d3144;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 100%;
+      word-break: break-word;
+    }
+    .message.user .bubble {
+      background: #1e1e4a;
+      border-color: #3d3d8a;
+    }
+
+    .bubble pre {
+      background: #0f1117;
+      border: 1px solid #2d3144;
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+
+    .typing-cursor {
+      display: inline-block;
+      width: 2px; height: 14px;
+      background: #7c8cf8;
+      margin-left: 2px;
+      animation: blink 1s infinite;
+      vertical-align: middle;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* Метрики */
+    .metrics {
+      font-size: 11px;
+      color: #4a5568;
+      margin-top: 6px;
+      display: flex;
+      gap: 12px;
+    }
+    .metrics span { display: flex; align-items: center; gap: 3px; }
+
+    /* ─── Инпут ──────────────────────────────────────────── */
+    .input-area {
+      padding: 16px 20px;
+      background: #1a1d27;
+      border-top: 1px solid #2d3144;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    textarea {
+      flex: 1;
+      background: #252836;
+      border: 1px solid #3d4166;
+      border-radius: 12px;
+      color: #e2e8f0;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      min-height: 48px;
+      max-height: 200px;
+      transition: border 0.2s;
+      line-height: 1.5;
+    }
+    textarea:focus { border-color: #7c8cf8; }
+    textarea::placeholder { color: #4a5568; }
+
+    .send-btn {
+      background: #4c46a8;
+      border: none;
+      border-radius: 12px;
+      color: white;
+      width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .send-btn:hover:not(:disabled) { background: #5c56c8; }
+    .send-btn:disabled { background: #252836; color: #4a5568; cursor: not-allowed; }
+
+    .stop-btn {
+      background: #7f1d1d;
+      border: none;
+      border-radius: 12px;
+      color: #fca5a5;
+      width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .input-hint {
+      font-size: 11px;
+      color: #374151;
+      margin-top: 6px;
+      text-align: right;
+    }
+
+    /* ─── Pull modal ─────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+    }
+    .modal {
+      background: #1a1d27;
+      border: 1px solid #2d3144;
+      border-radius: 16px;
+      padding: 24px;
+      width: 400px;
+      max-width: 90vw;
+    }
+    .modal h3 { font-size: 16px; color: #7c8cf8; margin-bottom: 12px; }
+    .modal p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 16px; }
+    .progress-bar {
+      background: #252836;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4c46a8, #7c8cf8);
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+    .modal-log {
+      font-family: monospace;
+      font-size: 12px;
+      color: #4ade80;
+      background: #0f1117;
+      border-radius: 8px;
+      padding: 10px;
+      max-height: 120px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+    .modal-close {
+      background: #252836;
+      border: 1px solid #3d4166;
+      color: #94a3b8;
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Шапка -->
+  <div class="header">
+    <div class="logo">Loc<span>Oll</span></div>
+    <div style="font-size:12px; color:#4a5568;">Локальный ИИ-ассистент</div>
+
+    <div class="model-select">
+      <div class="status-dot" :class="{ online: isOnline }"></div>
+      <label>Модель:</label>
+      <select v-model="selectedModel" :disabled="isStreaming">
+        <option v-for="m in models" :key="m.value" :value="m.value">{{ m.label }}</option>
+      </select>
+      <button class="pull-btn" @click="showPullModal = true" :disabled="isStreaming">
+        ⬇ Загрузить модель
+      </button>
+    </div>
+  </div>
+
+  <!-- Быстрые промпты -->
+  <div class="quick-prompts">
+    <span style="font-size:12px; color:#4a5568; align-self:center;">💡 Темы:</span>
+    <div
+      v-for="prompt in quickPrompts"
+      :key="prompt.label"
+      class="chip"
+      @click="useQuickPrompt(prompt.text)"
+    >{{ prompt.label }}</div>
+  </div>
+
+  <!-- Чат -->
+  <div class="chat-container" ref="chatContainer">
+    <div v-if="messages.length === 0" class="welcome">
+      <h2>🤖 LocOll готов к работе</h2>
+      <p>Локальный ИИ-ассистент на базе Ollama<br/>
+      Данные остаются на вашем устройстве — никакого облака</p>
+    </div>
+
+    <div
+      v-for="(msg, idx) in messages"
+      :key="idx"
+      class="message"
+      :class="msg.role"
+    >
+      <div class="avatar" :class="msg.role">
+        {{ msg.role === 'ai' ? '🤖' : '👤' }}
+      </div>
+      <div>
+        <div class="bubble" v-html="formatMessage(msg.content)">
+        </div>
+        <div v-if="msg.role === 'ai' && msg.metrics" class="metrics">
+          <span>⚡ {{ msg.metrics.tokensPerSec }} tok/s</span>
+          <span>📏 {{ msg.metrics.totalTokens }} токенов</span>
+          <span>⏱ {{ msg.metrics.duration }}с</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Текущий стриминг -->
+    <div v-if="isStreaming" class="message ai">
+      <div class="avatar ai">🤖</div>
+      <div class="bubble">
+        <span v-html="formatMessage(streamingText)"></span>
+        <span class="typing-cursor"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Поле ввода -->
+  <div class="input-area">
+    <div class="input-row">
+      <textarea
+        v-model="userInput"
+        placeholder="Напишите сообщение... (Enter — отправить, Shift+Enter — перенос)"
+        @keydown.enter.exact.prevent="sendMessage"
+        @input="autoResize"
+        ref="textarea"
+        rows="1"
+      ></textarea>
+      <button v-if="!isStreaming" class="send-btn" @click="sendMessage" :disabled="!userInput.trim()">
+        ➤
+      </button>
+      <button v-else class="stop-btn" @click="stopGeneration">
+        ■
+      </button>
+    </div>
+    <div class="input-hint">
+      Модель: {{ selectedModel }} · {{ messages.length / 2 | 0 }} запросов в сессии
+    </div>
+  </div>
+
+  <!-- Модальное окно загрузки модели -->
+  <div v-if="showPullModal" class="modal-overlay" @click.self="showPullModal = false">
+    <div class="modal">
+      <h3>⬇ Загрузка модели</h3>
+      <p>Выберите модель для загрузки. Файлы сохраняются в Docker volume <code>locoll-models</code> и остаются между перезапусками.</p>
+
+      <select v-model="pullModelName" style="width:100%; margin-bottom:12px;">
+        <option value="tinyllama">tinyllama (1.1B · ~637 MB) — быстрая</option>
+        <option value="llama2">llama2 (7B · ~3.8 GB) — качественная</option>
+        <option value="llama2:13b">llama2:13b (13B · ~7.4 GB) — мощная</option>
+        <option value="mistral">mistral (7B · ~4.1 GB) — альтернатива</option>
+        <option value="phi3:mini">phi3:mini (3.8B · ~2.2 GB) — компромисс</option>
+      </select>
+
+      <div v-if="isPulling">
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: pullProgress + '%' }"></div>
+        </div>
+        <div class="modal-log">{{ pullLog }}</div>
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <button
+          class="send-btn"
+          style="width:auto; padding:0 20px; border-radius:8px;"
+          @click="pullModel"
+          :disabled="isPulling"
+        >{{ isPulling ? 'Загружается...' : '⬇ Загрузить' }}</button>
+        <button class="modal-close" @click="showPullModal = false">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp, ref, computed, nextTick, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const messages = ref([]);
+    const userInput = ref('');
+    const selectedModel = ref('tinyllama');
+    const isStreaming = ref(false);
+    const streamingText = ref('');
+    const isOnline = ref(false);
+    const chatContainer = ref(null);
+    const textarea = ref(null);
+    const abortController = ref(null);
+
+    // Pull modal
+    const showPullModal = ref(false);
+    const pullModelName = ref('tinyllama');
+    const isPulling = ref(false);
+    const pullProgress = ref(0);
+    const pullLog = ref('');
+
+    const models = [
+      { value: 'tinyllama', label: 'TinyLlama 1.1B (быстрый)' },
+      { value: 'llama2', label: 'Llama 2 7B (качественный)' },
+      { value: 'mistral', label: 'Mistral 7B' },
+      { value: 'phi3:mini', label: 'Phi-3 Mini 3.8B' },
+    ];
+
+    const quickPrompts = [
+      { label: '📧 Email коллеге', text: 'Напиши деловое письмо коллеге с просьбой перенести встречу на завтра на 14:00.' },
+      { label: '📋 План встречи', text: 'Составь повестку митинга команды по итогам квартала: что обсудить, как структурировать 60 минут.' },
+      { label: '📊 KPI объяснение', text: 'Объясни простыми словами, что такое KPI и как их правильно ставить для отдела тестирования.' },
+      { label: '✅ Задача Jira', text: 'Напиши хорошее описание задачи для Jira: добавить логирование ошибок в API-сервис.' },
+      { label: '🗣 Презентация идеи', text: 'Как убедительно представить новую идею руководству за 5 минут? Дай структуру pitch.' },
+      { label: '🐛 Объяснить баг', text: 'Как объяснить нетехническому менеджеру, почему исправление бага займёт 3 дня, а не 30 минут?' },
+    ];
+
+    // Проверяем доступность Ollama
+    const checkOnline = async () => {
+      try {
+        const res = await fetch('/api/tags');
+        isOnline.value = res.ok;
+      } catch {
+        isOnline.value = false;
+      }
+    };
+
+    onMounted(() => {
+      checkOnline();
+      setInterval(checkOnline, 10000);
+    });
+
+    const scrollToBottom = () => {
+      nextTick(() => {
+        if (chatContainer.value) {
+          chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+        }
+      });
+    };
+
+    const autoResize = () => {
+      const el = textarea.value;
+      if (el) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+      }
+    };
+
+    const formatMessage = (text) => {
+      if (!text) return '';
+      // Простое форматирование: код в блоки
+      return text
+        .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+        .replace(/`([^`]+)`/g, '<code style="background:#252836;padding:2px 6px;border-radius:4px;font-size:13px;">$1</code>')
+        .replace(/\n/g, '<br/>');
+    };
+
+    const useQuickPrompt = (text) => {
+      userInput.value = text;
+      nextTick(() => autoResize());
+    };
+
+    const sendMessage = async () => {
+      const text = userInput.value.trim();
+      if (!text || isStreaming.value) return;
+
+      messages.value.push({ role: 'user', content: text });
+      userInput.value = '';
+      nextTick(() => autoResize());
+      scrollToBottom();
+
+      isStreaming.value = true;
+      streamingText.value = '';
+      const startTime = Date.now();
+
+      abortController.value = new AbortController();
+
+      try {
+        // Системный промпт — жёсткие правила
+        const systemPrompt = {
+          role: 'system',
+          content: 'ВАЖНО: Ты — русскоязычный ИИ-ассистент. ВСЕ ответы ТОЛЬКО на русском языке. Никогда не переключайся на английский или другие языки, даже если пользователь пишет на другом языке. Отвечай кратко, по делу, структурированно. Используй деловой стиль.'
+        };
+
+        // Строим историю для контекста
+        const historyMessages = [systemPrompt, ...messages.value.map(m => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content
+        }))];
+
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: abortController.value.signal,
+          body: JSON.stringify({
+            model: selectedModel.value,
+            messages: historyMessages,
+            stream: true,
+            options: {
+              num_ctx: 2048,     // Контекстное окно
+              temperature: 0.7,
+            }
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let tokenCount = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(l => l.trim());
+
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line);
+              if (data.message?.content) {
+                streamingText.value += data.message.content;
+                tokenCount++;
+                scrollToBottom();
+              }
+              if (data.done) {
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                const tokPerSec = (tokenCount / parseFloat(duration)).toFixed(1);
+                messages.value.push({
+                  role: 'ai',
+                  content: streamingText.value,
+                  metrics: {
+                    tokensPerSec: tokPerSec,
+                    totalTokens: tokenCount,
+                    duration: duration
+                  }
+                });
+                streamingText.value = '';
+              }
+            } catch {}
+          }
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          const errText = e.message.includes('fetch')
+            ? '⚠️ Ollama недоступен. Проверьте, что контейнер запущен и модель загружена.'
+            : `⚠️ Ошибка: ${e.message}`;
+          messages.value.push({ role: 'ai', content: errText });
+          streamingText.value = '';
+        } else {
+          // Пользователь остановил — сохраняем что есть
+          if (streamingText.value) {
+            messages.value.push({ role: 'ai', content: streamingText.value + ' *(остановлено)*' });
+            streamingText.value = '';
+          }
+        }
+      } finally {
+        isStreaming.value = false;
+        scrollToBottom();
+      }
+    };
+
+    const stopGeneration = () => {
+      if (abortController.value) {
+        abortController.value.abort();
+      }
+    };
+
+    const pullModel = async () => {
+      isPulling.value = true;
+      pullProgress.value = 0;
+      pullLog.value = `Начинаю загрузку ${pullModelName.value}...\n`;
+
+      try {
+        const res = await fetch('/api/pull', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: pullModelName.value, stream: true })
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const text = decoder.decode(value);
+          const lines = text.split('\n').filter(l => l.trim());
+
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line);
+              pullLog.value += data.status + '\n';
+
+              if (data.total && data.completed) {
+                pullProgress.value = Math.round((data.completed / data.total) * 100);
+              }
+              if (data.status === 'success') {
+                pullProgress.value = 100;
+                pullLog.value += '✅ Модель готова к использованию!\n';
+              }
+            } catch {}
+          }
+        }
+      } catch (e) {
+        pullLog.value += `❌ Ошибка: ${e.message}\n`;
+      } finally {
+        isPulling.value = false;
+        checkOnline();
+      }
+    };
+
+    return {
+      messages, userInput, selectedModel, isStreaming,
+      streamingText, isOnline, chatContainer, textarea,
+      models, quickPrompts,
+      showPullModal, pullModelName, isPulling, pullProgress, pullLog,
+      sendMessage, stopGeneration, useQuickPrompt,
+      formatMessage, autoResize, pullModel
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
