@@ -25,7 +25,8 @@ jobs:
         run: |
           cd /opt/locoll
           docker-compose down --remove-orphans || true
-          docker-compose up -d --build
+          docker-compose build --no-cache
+          docker-compose up -d
 
       - name: Verify Ollama (host)
         run: |
@@ -43,7 +44,7 @@ jobs:
       - name: Verify frontend
         run: |
           for i in $(seq 1 10); do
-            if curl -sf http://localhost:8090 > /dev/null 2>&1; then
+            if curl -sf http://localhost:8085 > /dev/null 2>&1; then
               echo "Frontend: OK"
               exit 0
             fi
@@ -59,4 +60,4 @@ jobs:
           cd /opt/locoll
           docker-compose ps
           echo "---"
-          echo "App: http://192.168.1.74:8090"
+          echo "App: http://192.168.1.74:8085"

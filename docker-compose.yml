@@ -5,7 +5,7 @@ services:
     build: ./frontend
     container_name: locoll-frontend
     ports:
-      - "8090:80"
+      - "8085:80"
     extra_hosts:
       - "ollama-host:host-gateway"
     restart: unless-stopped
