@@ -353,7 +353,7 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 				loading: false,
 				error: '',
 				rowCount: 0,
-				query: "SELECT\n  strftime(to_timestamp(ts), '%Y-%m-%d %H:%M') as time,\n  round(cpu_pct, 1) as cpu,\n  round(ram_used_mb / 1024.0, 2) as ram_gb\nFROM metrics\nORDER BY ts DESC\nLIMIT 20",
+				query: "SELECT\n  strftime(to_timestamp(ts)::TIMESTAMP, '%Y-%m-%d %H:%M') as time,\n  round(cpu_pct, 1) as cpu,\n  round(ram_used_mb / 1024.0, 2) as ram_gb\nFROM metrics\nORDER BY ts DESC\nLIMIT 20",
 				columns: [],
 				results: [],
 				async init() {
