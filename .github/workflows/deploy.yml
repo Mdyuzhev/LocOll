@@ -21,30 +21,27 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
 
-      - name: Build and start containers
+      - name: Build and start frontend
         run: |
           cd /opt/locoll
           docker-compose down || true
           docker-compose up -d --build
 
-      - name: Wait for Ollama to be healthy
+      - name: Verify Ollama (host)
         run: |
-          cd /opt/locoll
-          for i in $(seq 1 30); do
+          for i in $(seq 1 10); do
             if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
               echo "Ollama: OK"
               exit 0
             fi
-            echo "Waiting for Ollama... ($i/30)"
+            echo "Waiting for Ollama... ($i/10)"
             sleep 2
           done
-          echo "Ollama failed to start"
-          docker-compose logs ollama --tail=20
+          echo "Ollama not running on host"
           exit 1
 
       - name: Verify frontend
         run: |
-          cd /opt/locoll
           for i in $(seq 1 10); do
             if curl -sf http://localhost:8080 > /dev/null 2>&1; then
               echo "Frontend: OK"
@@ -54,10 +51,12 @@ jobs:
             sleep 2
           done
           echo "Frontend failed"
-          docker-compose logs frontend --tail=20
+          cd /opt/locoll && docker-compose logs frontend --tail=20
           exit 1
 
       - name: Show status
         run: |
           cd /opt/locoll
           docker-compose ps
+          echo "---"
+          echo "App: http://192.168.1.74:8080"
