@@ -77,10 +77,6 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 				hx-swap="innerHTML">
 				<div class="loading">Loading containers...</div>
 			</div>
-			<div id="log-output" class="log-output" style="display:none"></div>
-			<div id="terminal-container" style="display:none">
-				<div id="terminal-box" style="height:400px"></div>
-			</div>
 		</section>
 
 		<!-- Services Section -->
@@ -95,9 +91,10 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 		</section>
 
 		<!-- Analytics Section (DuckDB WASM) -->
-		<section x-show="tab === 'analytics'" x-cloak x-data="analyticsApp()" x-init="$watch('$store.tab', v => { if (v === 'analytics') init() })">
+		<section x-show="tab === 'analytics'" x-cloak x-data="analyticsApp()" x-effect="if (tab === 'analytics' && !initialized) init()">
 			<h2>Analytics (DuckDB WASM)</h2>
 			<div class="analytics-panel">
+				<div x-show="rowCount > 0" class="loaded-info" x-text="'Loaded ' + rowCount + ' rows (last 30 days)'"></div>
 				<textarea x-model="query" rows="5" class="sql-input" placeholder="Enter SQL query..."></textarea>
 				<button class="btn btn-primary" @click="runQuery()" :disabled="loading">
 					<span x-show="!loading">Run Query</span>
@@ -153,6 +150,32 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 		</section>
 	</main>
 
+	<!-- Modal Overlay -->
+	<div x-data x-show="$store.modal.open"
+		x-transition:enter="transition ease-out duration-200"
+		x-transition:enter-start="opacity-0"
+		x-transition:enter-end="opacity-100"
+		x-transition:leave="transition ease-in duration-150"
+		x-transition:leave-start="opacity-100"
+		x-transition:leave-end="opacity-0"
+		@click.self="$store.modal.close()"
+		class="modal-backdrop" x-cloak>
+		<div class="modal-content" @click.stop>
+			<div class="modal-header">
+				<span x-text="($store.modal.type === 'logs' ? '\ud83d\udccb Logs: ' : '\u2328\ufe0f Terminal: ') + $store.modal.containerName"></span>
+				<button @click="$store.modal.close()" class="modal-close">&times;</button>
+			</div>
+			<div class="modal-body">
+				<template x-if="$store.modal.open && $store.modal.type === 'logs'">
+					<div x-data="logsPanel()" x-init="init($store.modal.containerId)" class="logs-stream"></div>
+				</template>
+				<template x-if="$store.modal.open && $store.modal.type === 'terminal'">
+					<div x-data="terminalPanel()" x-init="init($store.modal.containerId)" class="terminal-mount"></div>
+				</template>
+			</div>
+		</div>
+	</div>
+
 	<!-- Scripts -->
 	<script src="/static/wasm_exec.js"></script>
 	<script>
@@ -168,35 +191,122 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 			}
 		})();
 
-		// Terminal
-		function openTerminal(containerId) {
-			const box = document.getElementById('terminal-container');
-			const termBox = document.getElementById('terminal-box');
-			box.style.display = box.style.display === 'none' ? 'block' : 'none';
-			if (box.style.display === 'block') {
-				loadTerminal(containerId, termBox);
+		// === Alpine Stores ===
+		document.addEventListener('alpine:init', () => {
+			Alpine.store('modal', {
+				open: false,
+				type: null,
+				containerId: null,
+				containerName: null,
+				show(type, id, name) {
+					this.type = type;
+					this.containerId = id;
+					this.containerName = name;
+					this.open = true;
+				},
+				close() {
+					this.open = false;
+					setTimeout(() => {
+						this.type = null;
+						this.containerId = null;
+						this.containerName = null;
+					}, 200);
+				}
+			});
+
+			Alpine.store('focus', {
+				containerId: null,
+				containerName: null,
+				set(id, name) {
+					this.containerId = id;
+					this.containerName = name;
+				}
+			});
+		});
+
+		// === Global Hotkeys ===
+		document.addEventListener('keydown', (e) => {
+			if (e.key === 'Escape' && Alpine.store('modal').open) {
+				Alpine.store('modal').close();
+				return;
 			}
+			const tag = document.activeElement?.tagName;
+			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+			if (Alpine.store('modal').open) return;
+
+			const { containerId, containerName } = Alpine.store('focus');
+			if (!containerId) return;
+
+			if (e.key === 'l' || e.key === 'L') {
+				e.preventDefault();
+				Alpine.store('modal').show('logs', containerId, containerName);
+			}
+			if (e.key === 't' || e.key === 'T') {
+				e.preventDefault();
+				Alpine.store('modal').show('terminal', containerId, containerName);
+			}
+		});
+
+		// === Logs Panel (SSE) ===
+		function logsPanel() {
+			return {
+				es: null,
+				init(containerId) {
+					const el = this.$el;
+					this.es = new EventSource('/containers/' + containerId + '/logs');
+					this.es.onmessage = (e) => {
+						const line = document.createElement('div');
+						line.className = 'log-line';
+						line.textContent = e.data;
+						el.appendChild(line);
+						el.scrollTop = el.scrollHeight;
+					};
+					this.es.onerror = () => {
+						const line = document.createElement('div');
+						line.className = 'log-error';
+						line.textContent = '[Connection closed]';
+						el.appendChild(line);
+						this.es.close();
+					};
+				},
+				destroy() {
+					if (this.es) { this.es.close(); this.es = null; }
+				}
+			};
 		}
 
-		async function loadTerminal(containerId, el) {
-			const { Terminal } = await import('https://cdn.jsdelivr.net/npm/xterm@5.3.0/+esm');
-			const { FitAddon } = await import('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/+esm');
-			el.innerHTML = '';
-			const term = new Terminal({ cursorBlink: true, theme: { background: '#1a1a2e' } });
-			const fitAddon = new FitAddon();
-			term.loadAddon(fitAddon);
-			term.open(el);
-			fitAddon.fit();
+		// === Terminal Panel (WebSocket + xterm.js) ===
+		function terminalPanel() {
+			return {
+				term: null,
+				ws: null,
+				async init(containerId) {
+					const { Terminal } = await import('https://cdn.jsdelivr.net/npm/xterm@5.3.0/+esm');
+					const { FitAddon } = await import('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/+esm');
+					const term = new Terminal({ cursorBlink: true, theme: { background: '#1a1a2e' } });
+					const fitAddon = new FitAddon();
+					term.loadAddon(fitAddon);
+					term.open(this.$el);
+					fitAddon.fit();
 
-			const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-			const ws = new WebSocket(proto + '//' + location.host + '/terminal/' + containerId);
-			ws.binaryType = 'arraybuffer';
-			ws.onmessage = e => term.write(new Uint8Array(e.data));
-			term.onData(data => ws.send(data));
-			ws.onclose = () => term.write('\r\n[Connection closed]');
+					const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+					const ws = new WebSocket(proto + '//' + location.host + '/terminal/' + containerId);
+					ws.binaryType = 'arraybuffer';
+					ws.onmessage = (e) => term.write(new Uint8Array(e.data));
+					term.onData(data => { if (ws.readyState === WebSocket.OPEN) ws.send(data); });
+					ws.onclose = () => term.write('\r\n[Connection closed]');
+
+					this.term = term;
+					this.ws = ws;
+				},
+				destroy() {
+					if (this.ws) { this.ws.close(); this.ws = null; }
+					if (this.term) { this.term.dispose(); this.term = null; }
+				}
+			};
 		}
 
-		// AI App
+		// === AI App ===
 		function aiApp() {
 			return {
 				containerId: '',
@@ -215,7 +325,6 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 						});
 				},
 				setFormData(btn) {
-					// Set hidden form data for htmx
 					const form = btn.closest('.ai-form');
 					let input = form.querySelector('input[name=container_id]');
 					if (!input) {
@@ -224,7 +333,6 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 						form.appendChild(input);
 					}
 					input.value = this.containerId;
-
 					let mInput = form.querySelector('input[name=model]');
 					if (!mInput) {
 						mInput = document.createElement('input');
@@ -236,35 +344,48 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 			};
 		}
 
-		// Analytics App (DuckDB WASM)
+		// === Analytics App (DuckDB WASM) ===
 		function analyticsApp() {
 			return {
 				db: null,
 				conn: null,
+				initialized: false,
 				loading: false,
 				error: '',
-				query: "SELECT\n  datetime(ts, 'unixepoch') as time,\n  round(cpu_pct, 1) as cpu,\n  round(ram_used_mb / 1024.0, 2) as ram_gb\nFROM metrics\nWHERE ts > unixepoch('now') - 3600\nORDER BY ts DESC\nLIMIT 20",
+				rowCount: 0,
+				query: "SELECT\n  strftime(to_timestamp(ts), '%Y-%m-%d %H:%M') as time,\n  round(cpu_pct, 1) as cpu,\n  round(ram_used_mb / 1024.0, 2) as ram_gb\nFROM metrics\nWHERE ts > epoch(now()) - 3600\nORDER BY ts DESC\nLIMIT 20",
 				columns: [],
 				results: [],
 				async init() {
-					if (this.db) return;
+					if (this.initialized) return;
 					try {
 						this.loading = true;
+						this.error = '';
 						const duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm');
 						const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 						const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
-						const worker = new Worker(bundle.mainWorker);
+						const workerUrl = bundle.mainWorker;
+						const workerScript = await fetch(workerUrl).then(r => r.text());
+						const blob = new Blob([workerScript], { type: 'application/javascript' });
+						const worker = new Worker(URL.createObjectURL(blob));
 						const logger = new duckdb.ConsoleLogger();
 						this.db = new duckdb.AsyncDuckDB(logger, worker);
 						await this.db.instantiate(bundle.mainModule);
 						this.conn = await this.db.connect();
 
-						// Load metrics data
-						const resp = await fetch('/metrics/history?hours=24&limit=10000');
-						const data = await resp.json();
+						// Load metrics via registerFileText (correct DuckDB WASM method)
+						const resp = await fetch('/metrics/history?hours=720&limit=100000');
+						const jsonText = await resp.text();
+						const data = JSON.parse(jsonText);
 						if (data && data.length > 0) {
-							await this.conn.query("CREATE TABLE metrics AS SELECT * FROM '" + URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'})) + "'");
+							await this.db.registerFileText('metrics.json', jsonText);
+							await this.conn.query("CREATE OR REPLACE TABLE metrics AS SELECT * FROM read_json_auto('metrics.json')");
+							const countResult = await this.conn.query("SELECT count(*) as cnt FROM metrics");
+							this.rowCount = countResult.toArray()[0].cnt;
+						} else {
+							this.error = 'No metrics data available yet.';
 						}
+						this.initialized = true;
 						this.loading = false;
 					} catch(e) {
 						this.error = 'Failed to load DuckDB: ' + e.message;

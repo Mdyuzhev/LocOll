@@ -43,7 +43,7 @@ func (h *Handler) Containers(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `<div class="project-group"><h3 class="project-name">%s</h3><table class="container-table"><thead><tr><th>Status</th><th>Name</th><th>Image</th><th>State</th><th>Ports</th><th>Actions</th></tr></thead><tbody>`, project)
 		for _, c := range ctrs {
 			icon := stateIcon(c.State, c.Health)
-			fmt.Fprintf(w, `<tr id="row-%s">
+			fmt.Fprintf(w, `<tr id="row-%s" @mouseenter="$store.focus.set('%s','%s')">
 				<td>%s</td>
 				<td>%s</td>
 				<td class="image">%s</td>
@@ -52,15 +52,15 @@ func (h *Handler) Containers(w http.ResponseWriter, r *http.Request) {
 				<td class="actions">
 					<div x-data="{ confirm: false, action: '' }">
 						<div x-show="!confirm" class="btn-group">`,
-				c.ID, icon, c.Name, c.Image, c.Status, c.Ports)
+				c.ID, c.ID, c.Name, icon, c.Name, c.Image, c.Status, c.Ports)
 
 			if c.State == "running" {
 				fmt.Fprintf(w, `
 							<button class="btn btn-warning btn-sm" @click="confirm=true; action='restart'">Restart</button>
 							<button class="btn btn-danger btn-sm" @click="confirm=true; action='stop'">Stop</button>
-							<button class="btn btn-info btn-sm" hx-get="/containers/%s/logs" hx-target="#log-output" hx-swap="innerHTML">Logs</button>
-							<button class="btn btn-secondary btn-sm" onclick="openTerminal('%s')">Terminal</button>`,
-					c.ID, c.ID)
+							<button class="btn btn-info btn-sm" @click="$store.modal.show('logs','%s','%s')">Logs</button>
+							<button class="btn btn-secondary btn-sm" @click="$store.modal.show('terminal','%s','%s')">Terminal</button>`,
+					c.ID, c.Name, c.ID, c.Name)
 			} else {
 				fmt.Fprintf(w, `
 							<button class="btn btn-success btn-sm" @click="confirm=true; action='start'">Start</button>`)
@@ -129,7 +129,7 @@ func (h *Handler) containerRow(w http.ResponseWriter, r *http.Request, id string
 		if c.ID == id {
 			icon := stateIcon(c.State, c.Health)
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, `<tr id="row-%s">
+			fmt.Fprintf(w, `<tr id="row-%s" @mouseenter="$store.focus.set('%s','%s')">
 				<td>%s</td>
 				<td>%s</td>
 				<td class="image">%s</td>
@@ -137,14 +137,14 @@ func (h *Handler) containerRow(w http.ResponseWriter, r *http.Request, id string
 				<td>%s</td>
 				<td class="actions">
 					<div x-data="{ confirm: false, action: '' }">
-						<div x-show="!confirm" class="btn-group">`, c.ID, icon, c.Name, c.Image, c.Status, c.Ports)
+						<div x-show="!confirm" class="btn-group">`, c.ID, c.ID, c.Name, icon, c.Name, c.Image, c.Status, c.Ports)
 
 			if c.State == "running" {
 				fmt.Fprintf(w, `
 							<button class="btn btn-warning btn-sm" @click="confirm=true; action='restart'">Restart</button>
 							<button class="btn btn-danger btn-sm" @click="confirm=true; action='stop'">Stop</button>
-							<button class="btn btn-info btn-sm" hx-get="/containers/%s/logs" hx-target="#log-output" hx-swap="innerHTML">Logs</button>
-							<button class="btn btn-secondary btn-sm" onclick="openTerminal('%s')">Terminal</button>`, c.ID, c.ID)
+							<button class="btn btn-info btn-sm" @click="$store.modal.show('logs','%s','%s')">Logs</button>
+							<button class="btn btn-secondary btn-sm" @click="$store.modal.show('terminal','%s','%s')">Terminal</button>`, c.ID, c.Name, c.ID, c.Name)
 			} else {
 				fmt.Fprintf(w, `
 							<button class="btn btn-success btn-sm" @click="confirm=true; action='start'">Start</button>`)
