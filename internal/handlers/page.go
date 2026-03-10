@@ -353,7 +353,7 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 				loading: false,
 				error: '',
 				rowCount: 0,
-				query: "SELECT\n  strftime(to_timestamp(ts), '%Y-%m-%d %H:%M') as time,\n  round(cpu_pct, 1) as cpu,\n  round(ram_used_mb / 1024.0, 2) as ram_gb\nFROM metrics\nWHERE ts > epoch(now()) - 3600\nORDER BY ts DESC\nLIMIT 20",
+				query: "SELECT\n  strftime(to_timestamp(ts), '%Y-%m-%d %H:%M') as time,\n  round(cpu_pct, 1) as cpu,\n  round(ram_used_mb / 1024.0, 2) as ram_gb\nFROM metrics\nORDER BY ts DESC\nLIMIT 20",
 				columns: [],
 				results: [],
 				async init() {
@@ -373,13 +373,17 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 						await this.db.instantiate(bundle.mainModule);
 						this.conn = await this.db.connect();
 
-						// Load metrics via registerFileText (correct DuckDB WASM method)
+						// Load metrics via registerFileText + insertJSONFromPath
 						const resp = await fetch('/metrics/history?hours=720&limit=100000');
 						const jsonText = await resp.text();
 						const data = JSON.parse(jsonText);
 						if (data && data.length > 0) {
 							await this.db.registerFileText('metrics.json', jsonText);
-							await this.conn.query("CREATE OR REPLACE TABLE metrics AS SELECT * FROM read_json_auto('metrics.json')");
+							await this.conn.insertJSONFromPath('metrics.json', {
+								name: 'metrics',
+								schema: 'main',
+								create: true
+							});
 							const countResult = await this.conn.query("SELECT count(*) as cnt FROM metrics");
 							this.rowCount = countResult.toArray()[0].cnt;
 						} else {
