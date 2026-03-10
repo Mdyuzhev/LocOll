@@ -118,7 +118,10 @@ func main() {
 	go collector.Start(ctx, st, dc, broker, renderer)
 
 	// Server
-	addr := ":8000"
+	addr := os.Getenv("LOCOLL_ADDR")
+	if addr == "" {
+		addr = ":8010"
+	}
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,
