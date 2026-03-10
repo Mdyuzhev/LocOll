@@ -109,7 +109,10 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
-      justify-content: flex-end;
+      min-height: 0;
+    }
+    .chat-spacer {
+      flex: 1 1 auto;
     }
 
     .chat-container::-webkit-scrollbar { width: 4px; }
@@ -342,6 +345,7 @@
 
   <!-- Чат -->
   <div class="chat-container" ref="chatContainer">
+    <div class="chat-spacer"></div>
     <div v-if="messages.length === 0" class="welcome">
       <h2>🤖 LocOll готов к работе</h2>
       <p>Локальный ИИ-ассистент на базе Ollama<br/>
