@@ -8,9 +8,12 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
-.header { background: #1a1a2e; color: #fff; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
-.header h1 { font-size: 1.2rem; }
-.header select { padding: 6px 10px; border-radius: 6px; border: none; font-size: 0.9rem; }
+.header { background: #1a1a2e; color: #fff; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.header h1 { font-size: 1.2rem; white-space: nowrap; }
+.header-controls { display: flex; align-items: center; gap: 8px; }
+.header select { padding: 6px 10px; border-radius: 6px; border: none; font-size: 0.9rem; max-width: 200px; }
+.header-btn { background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; white-space: nowrap; transition: border-color 0.2s; }
+.header-btn:hover { border-color: rgba(255,255,255,0.6); }
 .chat { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
 .msg { max-width: 75%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
 .msg.user { align-self: flex-end; background: #1a1a2e; color: #fff; border-bottom-right-radius: 4px; }
@@ -20,18 +23,45 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .input-area button { padding: 10px 20px; background: #1a1a2e; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem; white-space: nowrap; }
 .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
 .status { text-align: center; padding: 8px; color: #888; font-size: 0.85rem; }
+.prompt-warning { text-align: center; padding: 6px; color: #e67e22; font-size: 0.8rem; background: #fef9e7; border-top: 1px solid #f0e0b2; }
+
+/* Sidebar */
+.sidebar-overlay { display: none; }
+.sidebar { position: fixed; right: 0; top: 0; height: 100vh; width: 320px; max-width: 90vw; background: #fff; box-shadow: -2px 0 12px rgba(0,0,0,0.15); transform: translateX(100%); transition: transform 0.3s ease; z-index: 100; display: flex; flex-direction: column; }
+.sidebar.open { transform: translateX(0); }
+.sidebar-header { padding: 16px 20px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+.sidebar-header h3 { font-size: 1rem; color: #333; }
+.sidebar-close { background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #888; padding: 4px 8px; }
+.sidebar-close:hover { color: #333; }
+.sidebar-body { flex: 1; overflow-y: auto; padding: 20px; }
+.setting-group { margin-bottom: 20px; }
+.setting-group label { display: block; font-size: 0.85rem; color: #666; margin-bottom: 6px; font-weight: 500; }
+.setting-group textarea { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; font-family: inherit; resize: vertical; min-height: 80px; }
+.setting-group textarea:focus { outline: none; border-color: #1a1a2e; }
+.slider-row { display: flex; align-items: center; gap: 12px; }
+.slider-row input[type="range"] { flex: 1; accent-color: #1a1a2e; }
+.slider-val { min-width: 50px; text-align: right; font-size: 0.9rem; color: #1a1a2e; font-weight: 600; }
+
+@media (max-width: 480px) {
+  .header { padding: 10px 12px; flex-wrap: wrap; }
+  .header h1 { font-size: 1rem; }
+  .msg { max-width: 90%; }
+  .sidebar { width: 100vw; max-width: 100vw; }
+}
 </style>
 </head>
 <body>
 <div id="app">
   <div class="header">
     <h1>LocOll <span style="font-size:0.7rem;font-weight:normal;opacity:0.6;">made by /tosters</span></h1>
-    <select v-model="model">
-      <option value="mistral">mistral (7B)</option>
-      <option value="llama2">llama2 (7B)</option>
-      <option value="phi3:mini">phi3:mini (3.8B)</option>
-      <option value="tinyllama">tinyllama (1.5B)</option>
-    </select>
+    <div class="header-controls">
+      <select v-model="model">
+        <option v-if="models.length === 0" value="" disabled>Нет моделей</option>
+        <option v-for="m in models" :key="m.name" :value="m.name">{{ m.name }} ({{ m.size }})</option>
+      </select>
+      <button class="header-btn" @click="clearChat" title="Очистить чат">🗑 Очистить</button>
+      <button class="header-btn" @click="settingsOpen = true" title="Настройки">⚙</button>
+    </div>
   </div>
 
   <div class="chat" ref="chat">
@@ -39,34 +69,136 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <div v-if="loading" class="msg assistant">{{ partial || '...' }}</div>
   </div>
 
+  <div v-if="promptWarning" class="prompt-warning">⚠ Системный промпт не задан — ассистент работает без роли</div>
   <div v-if="statusMsg" class="status">{{ statusMsg }}</div>
 
   <div class="input-area">
     <textarea v-model="input" @keydown.enter.exact.prevent="send" placeholder="Введите сообщение..." rows="1"></textarea>
     <button @click="send" :disabled="loading || !input.trim()">Отправить</button>
   </div>
+
+  <!-- Sidebar настроек -->
+  <div class="sidebar" :class="{ open: settingsOpen }">
+    <div class="sidebar-header">
+      <h3>Настройки</h3>
+      <button class="sidebar-close" @click="settingsOpen = false">&times;</button>
+    </div>
+    <div class="sidebar-body">
+      <div class="setting-group">
+        <label>Системный промпт</label>
+        <textarea v-model="systemPrompt" placeholder="Например: Ты — HR-менеджер, помогаешь составлять письма"></textarea>
+      </div>
+      <div class="setting-group">
+        <label>Temperature: {{ temperature }}</label>
+        <div class="slider-row">
+          <input type="range" v-model.number="temperature" min="0" max="1" step="0.1">
+          <span class="slider-val">{{ temperature }}</span>
+        </div>
+      </div>
+      <div class="setting-group">
+        <label>Контекст (num_ctx): {{ numCtx }}</label>
+        <div class="slider-row">
+          <input type="range" v-model.number="numCtx" min="512" max="4096" step="256">
+          <span class="slider-val">{{ numCtx }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-const { createApp, ref, nextTick } = Vue;
+const { createApp, ref, nextTick, onMounted, watch } = Vue;
 
 createApp({
   setup() {
-    const model = ref('mistral');
+    const model = ref('');
+    const models = ref([]);
     const input = ref('');
     const messages = ref([]);
     const loading = ref(false);
     const partial = ref('');
     const statusMsg = ref('');
     const chat = ref(null);
+    const settingsOpen = ref(false);
+    const systemPrompt = ref('');
+    const temperature = ref(0.7);
+    const numCtx = ref(2048);
+    const promptWarning = ref(false);
+
+    const STORAGE_KEY = 'locoll_settings';
+
+    const saveSettings = () => {
+      try {
+        const data = { systemPrompt: systemPrompt.value, temperature: temperature.value, numCtx: numCtx.value, model: model.value };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        document.cookie = STORAGE_KEY + '=' + encodeURIComponent(JSON.stringify({ systemPrompt: systemPrompt.value, temperature: temperature.value, numCtx: numCtx.value, model: model.value })) + '; path=/; max-age=31536000';
+      }
+    };
+
+    const loadSettings = () => {
+      try {
+        let raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          const match = document.cookie.match(new RegExp('(?:^|; )' + STORAGE_KEY + '=([^;]*)'));
+          if (match) raw = decodeURIComponent(match[1]);
+        }
+        if (raw) {
+          const data = JSON.parse(raw);
+          systemPrompt.value = data.systemPrompt || '';
+          temperature.value = typeof data.temperature === 'number' ? data.temperature : 0.7;
+          numCtx.value = Math.max(512, Math.min(4096, data.numCtx || 2048));
+          if (data.model) model.value = data.model;
+        }
+      } catch (e) {}
+    };
+
+    watch([systemPrompt, temperature, numCtx, model], saveSettings);
+
+    const formatSize = (bytes) => {
+      if (!bytes) return '';
+      const gb = bytes / 1e9;
+      return gb >= 1 ? gb.toFixed(1) + 'GB' : (bytes / 1e6).toFixed(0) + 'MB';
+    };
+
+    const loadModels = async () => {
+      try {
+        const res = await fetch('/api/tags');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (data.models && data.models.length) {
+          models.value = data.models.map(m => ({ name: m.name, size: formatSize(m.size) }));
+          if (!model.value || !models.value.find(m => m.name === model.value)) {
+            model.value = models.value[0].name;
+          }
+        } else {
+          statusMsg.value = 'Нет загруженных моделей в Ollama';
+        }
+      } catch (e) {
+        statusMsg.value = 'Не удалось загрузить список моделей: ' + e.message;
+      }
+    };
 
     const scrollBottom = () => nextTick(() => {
       if (chat.value) chat.value.scrollTop = chat.value.scrollHeight;
     });
 
+    const clearChat = () => {
+      messages.value = [];
+      partial.value = '';
+      statusMsg.value = '';
+      promptWarning.value = false;
+    };
+
     const send = async () => {
       const text = input.value.trim();
       if (!text || loading.value) return;
+
+      if (!systemPrompt.value.trim()) {
+        promptWarning.value = true;
+      } else {
+        promptWarning.value = false;
+      }
 
       messages.value.push({ role: 'user', content: text });
       input.value = '';
@@ -76,17 +208,25 @@ createApp({
       scrollBottom();
 
       try {
+        const apiMessages = [];
+        if (systemPrompt.value.trim()) {
+          apiMessages.push({ role: 'system', content: systemPrompt.value.trim() });
+        }
+        for (const m of messages.value) {
+          apiMessages.push({ role: m.role, content: m.content });
+        }
+
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: model.value,
-            messages: messages.value.map(m => ({ role: m.role, content: m.content })),
-            options: { num_ctx: 2048 }
+            messages: apiMessages,
+            options: { num_ctx: numCtx.value, temperature: temperature.value }
           })
         });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -119,7 +259,12 @@ createApp({
       }
     };
 
-    return { model, input, messages, loading, partial, statusMsg, chat, send };
+    onMounted(() => {
+      loadSettings();
+      loadModels();
+    });
+
+    return { model, models, input, messages, loading, partial, statusMsg, chat, send, settingsOpen, systemPrompt, temperature, numCtx, clearChat, promptWarning };
   }
 }).mount('#app');
 </script>

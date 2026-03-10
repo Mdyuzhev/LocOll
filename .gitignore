@@ -1,3 +1,6 @@
 .claude/
 *.log
 .env
+
+# GitHub Actions runner
+actions-runner/
