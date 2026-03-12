@@ -13,7 +13,7 @@ ALLOWED_COMPOSE_DIRS = [
 ]
 
 
-def run_shell_command(command: str, timeout_seconds: int = 60) -> dict:
+def run_shell_command(command: str, timeout_seconds: int = 180) -> dict:
     """Execute a shell command on the server.
 
     Use for git operations, file inspection, system commands, etc.
@@ -21,7 +21,7 @@ def run_shell_command(command: str, timeout_seconds: int = 60) -> dict:
 
     Args:
         command: Shell command to execute (e.g. 'ls -la /home/flomaster/projects')
-        timeout_seconds: Max execution time in seconds (default 60, max 300)
+        timeout_seconds: Max execution time in seconds (default 180, max 300)
     """
     timeout_seconds = min(timeout_seconds, 300)
 
