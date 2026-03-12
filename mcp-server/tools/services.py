@@ -17,6 +17,10 @@ SERVICES = {
     "warehouse-analytics": {"port": 8090, "health": None},
     "warehouse-uplink-bot": {"port": 8001, "health": None},
     "errorlens-backend": {"port": 8002, "health": "http://localhost:8002/health"},
+    "errorlens-nginx": {"port": 3000, "health": "http://localhost:3000/"},
+    "errorlens-generator": {"port": None, "health": None, "container": "docker-generator-1"},
+    "errorlens-notification": {"port": None, "health": None, "container": "docker-notification-worker-1"},
+    "errorlens-automation": {"port": None, "health": None, "container": "docker-automation-worker-1"},
     "errorlens-gitlab": {"port": 8929, "health": None},
     "ollama": {"port": 11434, "health": "http://localhost:11434/"},
 }
@@ -40,6 +44,13 @@ CONTAINER_ALIASES = {
     "errorlens": "docker-backend-1",
     "errorlens-backend": "docker-backend-1",
     "errorlens-nginx": "docker-nginx-1",
+    "errorlens-generator": "docker-generator-1",
+    "errorlens-notification": "docker-notification-worker-1",
+    "errorlens-automation": "docker-automation-worker-1",
+    "errorlens-collab": "docker-collab-1",
+    "errorlens-redis": "docker-redis-1",
+    "errorlens-postgres": "docker-postgres-1",
+    "errorlens-minio": "docker-minio-1",
     "errorlens-gitlab": "errorlens-gitlab",
     "errorlens-gitlab-runner": "errorlens-gitlab-runner",
 }
@@ -61,6 +72,7 @@ def get_services_status() -> list[dict]:
             "last_checked": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         url = info.get("health")
+        container_name = info.get("container")
         if url:
             try:
                 start = time.monotonic()
@@ -70,7 +82,23 @@ def get_services_status() -> list[dict]:
                 entry["response_time_ms"] = round(elapsed, 1)
             except Exception:
                 entry["is_up"] = False
-        else:
+        elif container_name:
+            # No port/health URL — check Docker container health status
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", "--format", "{{.State.Status}}:{{.State.Health.Status}}", container_name],
+                    capture_output=True, text=True, timeout=5
+                )
+                output = result.stdout.strip()
+                state, _, health = output.partition(":")
+                entry["is_up"] = state == "running"
+                if health and health != "<no value>":
+                    entry["docker_health"] = health
+                    if health == "unhealthy":
+                        entry["is_up"] = False
+            except Exception:
+                entry["is_up"] = False
+        elif info["port"]:
             # No health URL — check if port is open
             import socket
             try:
@@ -135,7 +163,12 @@ def _resolve_container(service: str) -> str:
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:
-            # Prefer shorter name (more specific match)
+            # Prefer exact suffix match (e.g. "backend" → "locoll-backend-1" over "docker-backend-1")
+            # Priority: name ends with "-{service}-N" pattern
+            exact = [n for n in matches if n.lower().endswith(f"-{service.lower()}-1")]
+            if len(exact) == 1:
+                return exact[0]
+            # Fallback: prefer shorter name (more specific match)
             return min(matches, key=len)
 
     return service  # fallback to original
