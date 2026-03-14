@@ -7,6 +7,7 @@ from tools.docker_tools import restart_service, stop_service, start_service, get
 from tools.utils import run_health_check, get_server_info
 from tools.shell import run_shell_command, exec_in_container, grep_docker_logs, compose_up
 from tools.bot_manager import manage_bot
+from tools.notes import add_note, list_notes, complete_note
 
 mcp = FastMCP(
     name="homelab-mcp",
@@ -32,6 +33,9 @@ mcp.tool()(exec_in_container)
 mcp.tool()(grep_docker_logs)
 mcp.tool()(compose_up)
 mcp.tool()(manage_bot)
+mcp.tool()(add_note)
+mcp.tool()(list_notes)
+mcp.tool()(complete_note)
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http", host="0.0.0.0", port=8765)
