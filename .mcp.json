@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "homelab": {
-      "type": "http",
-      "url": "http://192.168.1.74:8765/mcp"
+      "command": "node",
+      "args": ["C:/Users/Михаил/.agent-context/homelab-proxy.js"]
     },
     "agent-context": {
       "command": "node",

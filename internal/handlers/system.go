@@ -11,8 +11,28 @@ import (
 )
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
+	info, _ := system.Read()
+	containers, _ := h.Docker.ListContainers(r.Context())
+
+	total := len(containers)
+	unhealthy := 0
+	for _, c := range containers {
+		if c.Health == "unhealthy" {
+			unhealthy++
+		}
+	}
+
+	dbSizeMB := h.Store.DBSizeMB()
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":               "ok",
+		"uptime":               formatUptime(info.UptimeSec),
+		"uptime_sec":           info.UptimeSec,
+		"containers_total":     total,
+		"containers_unhealthy": unhealthy,
+		"db_size_mb":           dbSizeMB,
+	})
 }
 
 func (h *Handler) System(w http.ResponseWriter, r *http.Request) {

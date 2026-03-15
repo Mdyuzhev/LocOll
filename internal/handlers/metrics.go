@@ -8,7 +8,7 @@ import (
 )
 
 func (h *Handler) MetricsHistory(w http.ResponseWriter, r *http.Request) {
-	hours := 1
+	hours := 24
 	if hs := r.URL.Query().Get("hours"); hs != "" {
 		if v, err := strconv.Atoi(hs); err == nil && v > 0 && v <= 720 {
 			hours = v

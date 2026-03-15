@@ -95,6 +95,10 @@ func main() {
 	// AI
 	r.Post("/ai/analyze", h.AIAnalyze)
 
+	// Notes
+	r.Get("/api/v1/notes", h.Notes)
+	r.Post("/api/v1/notes/{id}/complete", h.NoteComplete)
+
 	// JSON API
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", h.Health)
@@ -161,14 +165,66 @@ func (r *simpleRenderer) RenderServerCard(info system.Info, containers []docker.
 	}
 	diskColor := colorClass(diskPct)
 
-	return `<div id="server-metrics" hx-swap-oob="true">` +
+	now := time.Now().Format("15:04:05")
+	html := `<div id="server-metrics" hx-swap-oob="true">` +
 		`<div class="server-card">` +
 		metric("CPU", cpuColor, info.CPUPct, sprintf("%.1f%%", info.CPUPct)) +
 		metric("RAM", ramColor, ramPct, sprintf("%d / %d MB", info.RAMUsedMB, info.RAMTotalMB)) +
 		metric("Disk", diskColor, diskPct, sprintf("%.1f / %.1f GB", info.DiskUsedGB, info.DiskTotalGB)) +
 		`<div class="metric"><span class="label">Load</span><span class="value">` + sprintf("%.2f / %.2f / %.2f", info.LoadAvg1, info.LoadAvg5, info.LoadAvg15) + `</span></div>` +
 		`<div class="metric"><span class="label">Uptime</span><span class="value" id="uptime-value">` + formatUptime(info.UptimeSec) + `</span></div>` +
+		`<div class="metric"><span class="label">Updated</span><span class="value" style="color:var(--text-dim);font-size:0.8rem">` + now + `</span></div>` +
 		`</div></div>`
+
+	// Alerts block (OOB swap)
+	html += renderAlerts(containers)
+
+	// Uptime header (OOB swap)
+	html += `<span id="header-uptime" hx-swap-oob="true" class="header-uptime">` + "\u2191 " + formatUptime(info.UptimeSec) + `</span>`
+
+	// Title with unhealthy count (OOB swap)
+	unhealthyCount := 0
+	for _, c := range containers {
+		if c.Health == "unhealthy" {
+			unhealthyCount++
+		}
+	}
+	titlePrefix := ""
+	if unhealthyCount > 0 {
+		titlePrefix = sprintf("\u26a0\ufe0f (%d) ", unhealthyCount)
+	}
+	html += `<title id="page-title" hx-swap-oob="true">` + titlePrefix + `LocOll — Lab Portal</title>`
+
+	return html
+}
+
+func renderAlerts(containers []docker.ContainerInfo) string {
+	var alerts []docker.ContainerInfo
+	for _, c := range containers {
+		if c.Health == "unhealthy" || c.State != "running" {
+			alerts = append(alerts, c)
+		}
+	}
+
+	html := `<div id="alerts-block" hx-swap-oob="true">`
+	if len(alerts) > 0 {
+		html += `<div class="alerts-card">`
+		html += sprintf(`<div class="alerts-header">&#9888;&#65039; Require attention (%d)</div>`, len(alerts))
+		for _, a := range alerts {
+			status := a.Health
+			if status == "" {
+				status = a.State
+			}
+			cssClass := "alert-unhealthy"
+			if a.State != "running" {
+				cssClass = "alert-stopped"
+			}
+			html += sprintf(`<div class="alert-row %s"><span class="alert-name">%s</span><span class="alert-status">%s</span></div>`, cssClass, a.Name, status)
+		}
+		html += `</div>`
+	}
+	html += `</div>`
+	return html
 }
 
 func metric(label, color string, pct float64, value string) string {

@@ -61,6 +61,13 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *Store) DBSizeMB() float64 {
+	var pageCount, pageSize int64
+	s.db.QueryRow("PRAGMA page_count").Scan(&pageCount)
+	s.db.QueryRow("PRAGMA page_size").Scan(&pageSize)
+	return float64(pageCount*pageSize) / (1024 * 1024)
+}
+
 func (s *Store) migrate() error {
 	_, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`)
 	if err != nil {

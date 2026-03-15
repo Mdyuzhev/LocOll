@@ -17,7 +17,7 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>LocOll — Lab Portal</title>
+	<title id="page-title">LocOll — Lab Portal</title>
 	<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 	<script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
 	<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
@@ -31,7 +31,10 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 	</div>
 
 	<header class="top-bar">
-		<h1 class="logo">&#128300; LocOll</h1>
+		<div class="logo-group">
+			<h1 class="logo">&#128300; LocOll</h1>
+			<span id="header-uptime" class="header-uptime"></span>
+		</div>
 		<nav x-data="{ tab: 'server' }">
 			<button :class="{ active: tab === 'server' }" @click="tab = 'server'">Server</button>
 			<button :class="{ active: tab === 'containers' }" @click="tab = 'containers'">Containers</button>
@@ -41,7 +44,13 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 		</nav>
 	</header>
 
-	<main x-data="{ tab: 'server' }" @keydown.window="
+	<main x-data="{ tab: new URLSearchParams(location.search).get('tab') || 'server' }" x-init="
+		$watch('tab', (val) => {
+			const url = new URL(location);
+			url.searchParams.set('tab', val);
+			history.replaceState(null, '', url);
+		});
+	" @keydown.window="
 		if ($event.key === '1') tab = 'server';
 		if ($event.key === '2') tab = 'containers';
 		if ($event.key === '3') tab = 'services';
@@ -65,6 +74,12 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 				hx-trigger="load"
 				hx-swap="innerHTML">
 				<div class="loading">Loading metrics...</div>
+			</div>
+			<div id="alerts-block"></div>
+			<div id="notes-widget"
+				hx-get="/api/v1/notes"
+				hx-trigger="load"
+				hx-swap="innerHTML">
 			</div>
 		</section>
 
@@ -125,7 +140,7 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 		<!-- AI Section -->
 		<section x-show="tab === 'ai'" x-cloak>
 			<h2>AI Analysis</h2>
-			<div class="ai-panel" x-data="aiApp()">
+			<div class="ai-panel" x-data="aiApp()" x-effect="if (tab === 'ai' && !loaded) loadContainers()">
 				<div class="ai-form">
 					<select x-model="containerId" class="select-container">
 						<option value="">Select container...</option>
@@ -311,7 +326,10 @@ func (h *Handler) IndexPage(w http.ResponseWriter, r *http.Request) {
 			return {
 				containerId: '',
 				model: 'mistral:latest',
-				init() {
+				loaded: false,
+				loadContainers() {
+					if (this.loaded) return;
+					this.loaded = true;
 					fetch('/api/v1/containers', { headers: { 'Accept': 'application/json' } })
 						.then(r => r.json())
 						.then(containers => {
