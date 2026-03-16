@@ -38,4 +38,8 @@ mcp.tool()(list_notes)
 mcp.tool()(complete_note)
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8765)
+    # stateless_http=True — отключаем сессии полностью.
+    # Каждый HTTP POST обрабатывается независимо, без mcp-session-id.
+    # Это устраняет проблему "протухших сессий" через 10-15 минут неактивности.
+    # Для чисто инструментального сервера (без состояния между вызовами) — правильный режим.
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=True)
