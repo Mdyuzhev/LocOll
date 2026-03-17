@@ -9,7 +9,14 @@ def get_docker_ps() -> list[dict]:
     """Get all Docker containers with their status.
 
     Returns structured list: id, name, image, status, ports, created.
+    Results cached for 15 seconds. Cached responses include from_cache: true.
     """
+    from .cache import get_cached_docker, set_cached_docker
+
+    cached = get_cached_docker()
+    if cached:
+        return [*cached, {"from_cache": True}]
+
     fmt = '{"id":"{{.ID}}","name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","ports":"{{.Ports}}","created":"{{.CreatedAt}}"}'
     result = subprocess.run(
         ["docker", "ps", "-a", "--format", fmt],
@@ -22,6 +29,7 @@ def get_docker_ps() -> list[dict]:
                 containers.append(json.loads(line))
             except json.JSONDecodeError:
                 continue
+    set_cached_docker(containers)
     return containers
 
 
@@ -57,6 +65,9 @@ def restart_service(service: str) -> dict:
     # Status after
     after = _get_container_status(container)
 
+    from .cache import record_event
+    record_event(container, "restarted", detail="manual restart via MCP")
+
     return {
         "container": container,
         "success": True,
@@ -79,6 +90,9 @@ def stop_service(service: str) -> dict:
         ["docker", "stop", container],
         capture_output=True, text=True, timeout=30
     )
+    if result.returncode == 0:
+        from .cache import record_event
+        record_event(container, "stopped", detail="manual stop via MCP")
     return {
         "container": container,
         "success": result.returncode == 0,
@@ -99,6 +113,9 @@ def start_service(service: str) -> dict:
         ["docker", "start", container],
         capture_output=True, text=True, timeout=30
     )
+    if result.returncode == 0:
+        from .cache import record_event
+        record_event(container, "started", detail="manual start via MCP")
     return {
         "container": container,
         "success": result.returncode == 0,

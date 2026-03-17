@@ -8,6 +8,7 @@ from tools.utils import run_health_check, get_server_info
 from tools.shell import run_shell_command, exec_in_container, grep_docker_logs, compose_up
 from tools.bot_manager import manage_bot
 from tools.notes import add_note, list_notes, complete_note
+from tools.cache import get_recent_events
 
 mcp = FastMCP(
     name="homelab-mcp",
@@ -36,6 +37,24 @@ mcp.tool()(manage_bot)
 mcp.tool()(add_note)
 mcp.tool()(list_notes)
 mcp.tool()(complete_note)
+
+
+def get_events(hours: int = 1, container: str | None = None, project: str | None = None) -> list[dict]:
+    """Get container events history for the last N hours.
+
+    Args:
+        hours: How many hours back to look (default 1, max 168 = 7 days)
+        container: Filter by container name (optional)
+        project: Filter by docker compose project name (optional)
+    """
+    hours = min(hours, 168)
+    events = get_recent_events(hours=hours, container=container, project=project)
+    if not events:
+        return [{"message": f"No events in the last {hours}h"}]
+    return events
+
+
+mcp.tool()(get_events)
 
 if __name__ == "__main__":
     # stateless_http=True — отключаем сессии полностью.

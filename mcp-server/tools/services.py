@@ -175,10 +175,20 @@ def _resolve_container(service: str) -> str:
 
 
 def get_system_metrics() -> dict:
-    """Get current server system metrics: CPU, RAM, disk, load average, uptime."""
+    """Get current server system metrics: CPU, RAM, disk, load average, uptime.
+
+    Results cached for 30 seconds. Cached responses include from_cache: true.
+    """
+    from .cache import get_cached_metrics, set_cached_metrics
+
+    cached = get_cached_metrics()
+    if cached:
+        cached["from_cache"] = True
+        return cached
+
     import psutil
 
-    cpu_pct = psutil.cpu_percent(interval=1)
+    cpu_pct = psutil.cpu_percent(interval=0.5)
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
     load = psutil.getloadavg()
@@ -187,7 +197,7 @@ def get_system_metrics() -> dict:
     days = int(uptime_seconds // 86400)
     hours = int((uptime_seconds % 86400) // 3600)
 
-    return {
+    result = {
         "cpu_percent": cpu_pct,
         "ram_used_mb": round(mem.used / 1024 / 1024),
         "ram_total_mb": round(mem.total / 1024 / 1024),
@@ -200,3 +210,5 @@ def get_system_metrics() -> dict:
         "load_avg_15m": round(load[2], 2),
         "uptime": f"{days}d {hours}h",
     }
+    set_cached_metrics(result)
+    return result

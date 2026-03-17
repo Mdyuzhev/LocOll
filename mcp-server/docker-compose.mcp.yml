@@ -13,3 +13,9 @@ services:
       - /opt/warehouse:/opt/warehouse
       - /opt/homelab-mcp:/opt/homelab-mcp
       - /home/flomaster:/home/flomaster
+      - homelab_mcp_data:/data
+    environment:
+      - CACHE_DB_PATH=/data/homelab.db
+
+volumes:
+  homelab_mcp_data:

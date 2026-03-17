@@ -62,6 +62,23 @@ client.close()
 
 ---
 
+## ✅ Homelab MCP — stateless режим (LL-015)
+
+**Проблема устранена навсегда.** Ранее сессии homelab-mcp протухали через 10-15 минут
+неактивности, что ломало все инструменты до перезапуска чата.
+
+**Решение (коммит 1d724a9, 2026-03-16):** в `mcp-server/server.py` добавлен флаг:
+
+```python
+mcp.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=True)
+```
+
+В stateless режиме каждый HTTP POST обрабатывается независимо — никаких сессий,
+никаких mcp-session-id, никаких таймаутов. Сервер отвечает `{"status":"ok"}`,
+заголовок `mcp-session-id` в ответах отсутствует.
+
+---
+
 Полный справочник (стек, архитектура, структура, команды): `.claude/reference.md`
 
 ---
@@ -70,7 +87,7 @@ client.close()
 
 - **CI runner**: GitHub Actions деплоит в `/opt/locoll`. При push: down → build --no-cache → up.
 - **Go WASM toolchain**: Docker скачивает Go 1.25 toolchain — увеличивает время сборки.
-- **PM2 autostart**: Реестр `HKCU\...\Run\PM2-AgentContext` запускает `pm2 resurrect` при логоне (Task Scheduler требовал админ-прав).
+- ~~**PM2 autostart**~~: Удалён (LL-016). agent-context теперь в Docker Desktop с `restart: unless-stopped`.
 
 ---
 
@@ -92,6 +109,8 @@ client.close()
 | LL-012 | startup-speed | ✅ выполнена |
 | LL-013 | agent-context-http | ✅ выполнена |
 | LL-014 | pm2-windows-autostart | ✅ выполнена |
+| LL-015 | homelab-mcp-stateless | ✅ выполнена |
+| LL-016 | agent-context-python | ✅ выполнена |
 
 Файлы задач: `E:\LocOll\Tasks\backlog\LL-NNN_slug.md` (в работе), `E:\LocOll\Tasks\done\LL-NNN_slug.md` (выполненные)
 
@@ -108,4 +127,4 @@ client.close()
 
 ---
 
-*Последнее обновление: 2026-03-16 (LL-014 выполнена)*
+*Последнее обновление: 2026-03-17 (LL-016 выполнена — agent-context на Python/Docker, PM2 удалён)*
