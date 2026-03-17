@@ -32,50 +32,35 @@
 
 ---
 
-## 🔴 КРИТИЧНО: КАК ПОДКЛЮЧАТЬСЯ К СЕРВЕРУ
+## Подключение к серверу
 
-**Голый `ssh` и `sshpass` НЕ РАБОТАЮТ.** Среда агента — Windows с кириллическим
-именем пользователя. Ломается путь к `~/.ssh/known_hosts`.
-
-**Единственный правильный способ — Python + paramiko. Всегда. Без исключений.**
-
-```python
-import paramiko, sys
-sys.stdout.reconfigure(encoding='utf-8')
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('192.168.1.74', username='flomaster', password='Misha2021@1@', timeout=10)
-_, stdout, stderr = client.exec_command('КОМАНДА')
-print(stdout.read().decode('utf-8', errors='replace').strip())
-client.close()
-```
-
-| Параметр | Значение |
-|----------|----------|
-| **Host** | **192.168.1.74** (LAN — основной) / 100.81.243.12 (Tailscale — удалённо) |
-| User | flomaster |
-| Password | Misha2021@1@ |
-| Путь на сервере | /opt/locoll |
-
+Правила подключения (paramiko, адреса, креды) — в глобальном окружении (`start_session`).
+Путь проекта на сервере: `/opt/locoll`
 Ключевые порты: Portal **4000**, backend **8010**, homelab-mcp **8765**, Ollama **11434**.
-Полные шаблоны — `E:\HomeLab\server-access.md`. Полная карта — `E:\HomeLab\server_map.md`.
 
 ---
 
-## ✅ Homelab MCP — stateless режим (LL-015)
+## MCP-архитектура (текущее состояние)
 
-**Проблема устранена навсегда.** Ранее сессии homelab-mcp протухали через 10-15 минут
-неактивности, что ломало все инструменты до перезапуска чата.
+### homelab-mcp (на сервере)
+- **URL**: `http://192.168.1.74:8765/mcp`
+- Python + FastMCP 3.1.1, Docker, `stateless_http=True`
+- 23 инструмента (включая `git_status`, `git_log` из LL-027)
+- SQLite кеш: `/data/homelab.db` (named volume), metrics TTL=30s, docker_ps TTL=15s, events retention=7d
+- `/health` endpoint не работает в FastMCP 3.1.1 — проверять через MCP initialize
 
-**Решение (коммит 1d724a9, 2026-03-16):** в `mcp-server/server.py` добавлен флаг:
+### agent-context (локально, Docker Desktop)
+- **URL**: `http://127.0.0.1:8766/mcp`
+- Python + FastMCP, Docker Desktop (python:3.12-alpine, `restart: unless-stopped`)
+- `stateless_http=True` + `_active_state` в SQLite
+- Данные: `E:\agent-context\data\` (volume mount → /data)
+- 8 инструментов, `start_session` возвращает полный контекст (LL-018):
+  метрики, контейнеры, события, заметки — параллельно через `asyncio.gather`
+- `get_context` — лёгкий, только локальные данные из SQLite
 
-```python
-mcp.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=True)
-```
-
-В stateless режиме каждый HTTP POST обрабатывается независимо — никаких сессий,
-никаких mcp-session-id, никаких таймаутов. Сервер отвечает `{"status":"ok"}`,
-заголовок `mcp-session-id` в ответах отсутствует.
+### /init — один вызов
+`start_session` = единственная точка входа. Health check, метрики, docker ps,
+events, notes — всё параллельно внутри. Не нужен отдельный curl или get_context.
 
 ---
 
@@ -85,9 +70,8 @@ mcp.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=T
 
 ## ⚠️ Известные проблемы
 
-- **CI runner**: GitHub Actions деплоит в `/opt/locoll`. При push: down → build --no-cache → up.
+- **CI runner**: GitHub Actions деплоит только портал (docker-compose.yml). homelab-mcp (docker-compose.mcp.yml) пересобирать вручную на сервере.
 - **Go WASM toolchain**: Docker скачивает Go 1.25 toolchain — увеличивает время сборки.
-- ~~**PM2 autostart**~~: Удалён (LL-016). agent-context теперь в Docker Desktop с `restart: unless-stopped`.
 
 ---
 
@@ -111,6 +95,17 @@ mcp.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=T
 | LL-014 | pm2-windows-autostart | ✅ выполнена |
 | LL-015 | homelab-mcp-stateless | ✅ выполнена |
 | LL-016 | agent-context-python | ✅ выполнена |
+| LL-017 | homelab-mcp-sqlite | ✅ выполнена |
+| LL-018 | smart-start-session | ✅ выполнена |
+| LL-019 | resolver-active-state-sqlite | ❌ неактуальна (Python уже использует SQLite) |
+| LL-020 | db-commit-safety | ✅ выполнена |
+| LL-021 | shared-conventions | ✅ выполнена |
+| LL-022 | docker-stats-tool | ✅ выполнена |
+| LL-023 | mcp-tool-improvements | ✅ выполнена |
+| LL-024 | agent-context-per-session-state | ✅ выполнена |
+| LL-025 | workflow-tools | ✅ выполнена |
+| LL-026 | fix-container-aliases | ✅ выполнена |
+| LL-027 | git-inspection-tools | ✅ выполнена |
 
 Файлы задач: `E:\LocOll\Tasks\backlog\LL-NNN_slug.md` (в работе), `E:\LocOll\Tasks\done\LL-NNN_slug.md` (выполненные)
 
@@ -118,8 +113,6 @@ mcp.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=T
 
 ## 🚫 Запрещено
 
-- `ssh`, `sshpass` — только paramiko
-- `kubectl` — K3s удалён с сервера
 - PostgreSQL, Redis — только SQLite
 - npm build на сервере — только Docker multi-stage
 - Хардкодить список контейнеров — только через Docker label `com.docker.compose.project`
@@ -127,4 +120,4 @@ mcp.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=T
 
 ---
 
-*Последнее обновление: 2026-03-17 (LL-016 выполнена — agent-context на Python/Docker, PM2 удалён)*
+*Последнее обновление: 2026-03-17 (LL-027 — git inspection tools)*
