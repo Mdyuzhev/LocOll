@@ -25,6 +25,12 @@
 /status — разовый производственный срез (все проекты, 24 часа)
 /loop 30m /status — автоматический мониторинг каждые 30 минут
 
+## Обнаружение проектов
+
+/scan            — разовое сканирование E:\ на новые проекты
+/loop 6h /scan   — сканирование каждые 6 часов
+/onboard <Name>  — подключить проект под контроль LocOll
+
 ---
 
 ## Что это за проект
@@ -115,6 +121,9 @@ events, notes — всё параллельно внутри. Не нужен о
 | LL-027 | git-inspection-tools | ✅ выполнена |
 | LL-034 | production-monitor | ✅ выполнена |
 | LL-035 | deploy-handoff | ✅ выполнена |
+| LL-036 | telegram-production-alerts | ✅ выполнена |
+| LL-037 | project-autodiscovery | ✅ выполнена |
+| LL-038 | project-onboarding | ✅ выполнена |
 
 Файлы задач: `E:\LocOll\Tasks\backlog\LL-NNN_slug.md` (в работе), `E:\LocOll\Tasks\done\LL-NNN_slug.md` (выполненные)
 
@@ -129,4 +138,4 @@ events, notes — всё параллельно внутри. Не нужен о
 
 ---
 
-*Последнее обновление: 2026-03-17 (LL-027 — git inspection tools)*
+*Последнее обновление: 2026-03-18 (LL-034..038 — production monitor, deploy handoff, telegram alerts, project discovery, onboarding)*
