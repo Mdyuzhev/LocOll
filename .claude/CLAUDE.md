@@ -20,6 +20,14 @@
 
 ---
 
+## Обнаружение проектов
+
+/scan            — разовое сканирование E:\ на новые проекты
+/loop 6h /scan   — сканирование каждые 6 часов
+/onboard <Name>  — подключить проект под контроль LocOll
+
+---
+
 ## Что это за проект
 
 **LocOll** — экспериментальный homelab-портал. Единый дашборд для управления и
@@ -106,6 +114,7 @@ events, notes — всё параллельно внутри. Не нужен о
 | LL-025 | workflow-tools | ✅ выполнена |
 | LL-026 | fix-container-aliases | ✅ выполнена |
 | LL-027 | git-inspection-tools | ✅ выполнена |
+| LL-037 | project-autodiscovery | ✅ выполнена |
 
 Файлы задач: `E:\LocOll\Tasks\backlog\LL-NNN_slug.md` (в работе), `E:\LocOll\Tasks\done\LL-NNN_slug.md` (выполненные)
 
