@@ -93,3 +93,125 @@ def get_production_status(since_hours: int = 24) -> dict:
         "since_hours": since_hours,
         "check_time_s": elapsed,
     }
+
+
+def _verify_deploy(project: str) -> dict:
+    """Verify deploy: health check + recent logs."""
+    import subprocess
+    import httpx
+
+    cfg = PROJECT_CONFIG.get(project, {})
+    result = {"project": project}
+
+    # Health check
+    health_url = cfg.get("health_url")
+    if health_url:
+        try:
+            resp = httpx.get(health_url, timeout=10)
+            result["health"] = {
+                "status_code": resp.status_code,
+                "healthy": resp.status_code < 400,
+                "body": resp.text[:200],
+            }
+        except Exception as e:
+            result["health"] = {"healthy": False, "error": str(e)}
+    else:
+        result["health"] = {"healthy": None, "note": "No health endpoint configured"}
+
+    # Recent logs
+    main_service = cfg.get("main_service", "")
+    if main_service:
+        container = f"{project}-{main_service}-1"
+        logs_result = subprocess.run(
+            ["docker", "logs", "--tail", "20", container],
+            capture_output=True, text=True, timeout=15
+        )
+        log_text = (logs_result.stdout + logs_result.stderr).strip()[-3000:]
+        has_errors = any(
+            kw in log_text.lower()
+            for kw in ["error", "traceback", "exception", "fatal"]
+        )
+        result["logs"] = {
+            "container": container,
+            "has_errors": has_errors,
+            "tail": log_text,
+        }
+    else:
+        result["logs"] = {"note": "No main_service configured"}
+
+    return result
+
+
+def notify_deploy(
+    project: str,
+    commit: str = "",
+    message: str = "",
+    branch: str = "main",
+    status: str = "success",
+) -> dict:
+    """Notify LocOll about a deploy and run automatic verification.
+
+    Called by project agents after deploy_project() completes.
+    Records event, runs health check + log inspection, returns verdict.
+
+    Args:
+        project:  Project name (e.g. 'moex', 'errorlens', 'warehouse').
+        commit:   Short commit hash (optional, auto-detected if empty).
+        message:  Commit message (optional, auto-detected if empty).
+        branch:   Branch deployed (default 'main').
+        status:   Deploy status from caller: 'success' or 'failed'.
+    """
+    from .cache import record_event
+
+    start = time.monotonic()
+
+    # Auto-detect commit info if not provided
+    if not commit and project in GIT_REPOS:
+        git = git_status(project)
+        if git and not git.get("error"):
+            commit = git.get("last_commit", {}).get("short_hash", "")
+            message = message or git.get("last_commit", {}).get("message", "")
+
+    # Record deploy event
+    detail = f"branch={branch} commit={commit} status={status}"
+    if message:
+        detail += f" msg={message}"
+    record_event(
+        container=f"{project}-deploy",
+        event="deploy",
+        project=project,
+        detail=detail,
+    )
+
+    # Verify if deploy was reported as success
+    verification = None
+    if status == "success":
+        verification = _verify_deploy(project)
+
+    elapsed = round(time.monotonic() - start, 1)
+
+    # Verdict
+    if status != "success":
+        verdict = "DEPLOY_FAILED"
+    elif verification:
+        health_ok = verification.get("health", {}).get("healthy") is not False
+        logs_ok = not verification.get("logs", {}).get("has_errors", False)
+        if health_ok and logs_ok:
+            verdict = "VERIFIED_OK"
+        elif health_ok:
+            verdict = "WARNINGS_IN_LOGS"
+        else:
+            verdict = "HEALTH_FAILED"
+    else:
+        verdict = "NOT_VERIFIED"
+
+    return {
+        "project": project,
+        "verdict": verdict,
+        "commit": commit,
+        "message": message,
+        "branch": branch,
+        "deploy_status": status,
+        "verification": verification,
+        "check_time_s": elapsed,
+    }

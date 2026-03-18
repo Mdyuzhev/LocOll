@@ -13,7 +13,7 @@ from tools.notes import add_note, list_notes, complete_note
 from tools.bridge import claude_bridge_handler, TOOL_REGISTRY
 from tools.workflows import deploy_project, restart_and_verify, run_db_migration
 from tools.git_tools import git_status, git_log
-from tools.production import get_production_status
+from tools.production import get_production_status, notify_deploy
 
 mcp = FastMCP(
     name="homelab-mcp",
@@ -49,6 +49,7 @@ mcp.tool()(run_db_migration)
 mcp.tool()(git_status)
 mcp.tool()(git_log)
 mcp.tool()(get_production_status)
+mcp.tool()(notify_deploy)
 
 
 # --- claude-bridge: simplified HTTP endpoint ---

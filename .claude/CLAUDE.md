@@ -114,6 +114,7 @@ events, notes — всё параллельно внутри. Не нужен о
 | LL-026 | fix-container-aliases | ✅ выполнена |
 | LL-027 | git-inspection-tools | ✅ выполнена |
 | LL-034 | production-monitor | ✅ выполнена |
+| LL-035 | deploy-handoff | ✅ выполнена |
 
 Файлы задач: `E:\LocOll\Tasks\backlog\LL-NNN_slug.md` (в работе), `E:\LocOll\Tasks\done\LL-NNN_slug.md` (выполненные)
 
