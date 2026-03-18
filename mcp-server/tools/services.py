@@ -6,53 +6,111 @@ import httpx
 
 
 SERVICES = {
+    # --- LocOll Portal ---
     "locoll-backend": {"port": 8010, "health": "http://localhost:8010/api/v1/health"},
-    "locoll-nginx": {"port": 4000, "health": "http://localhost:4000/"},
-    "warehouse-api": {"port": 8080, "health": "http://localhost:8080/health"},
-    "warehouse-grafana": {"port": 3001, "health": "http://localhost:3001/"},
-    "warehouse-prometheus": {"port": 9090, "health": "http://localhost:9090/-/healthy"},
-    "warehouse-frontend": {"port": 80, "health": "http://localhost:80/"},
-    "warehouse-telegram-bot": {"port": 8000, "health": None},
-    "warehouse-robot": {"port": 8070, "health": "http://localhost:8070/health"},
-    "warehouse-analytics": {"port": 8090, "health": None},
-    "warehouse-uplink-bot": {"port": 8001, "health": None},
-    "errorlens-backend": {"port": 8002, "health": "http://localhost:8002/health"},
-    "errorlens-nginx": {"port": 3000, "health": "http://localhost:3000/"},
-    "errorlens-generator": {"port": None, "health": None, "container": "docker-generator-1"},
-    "errorlens-notification": {"port": None, "health": None, "container": "docker-notification-worker-1"},
-    "errorlens-automation": {"port": None, "health": None, "container": "docker-automation-worker-1"},
-    "errorlens-gitlab": {"port": 8929, "health": None},
+    "locoll-nginx":   {"port": 4000, "health": "http://localhost:4000/"},
+
+    # --- Warehouse ---
+    "warehouse-api":           {"port": 8080, "health": "http://localhost:8080/health"},
+    "warehouse-grafana":       {"port": 3001, "health": "http://localhost:3001/"},
+    "warehouse-prometheus":    {"port": 9090, "health": "http://localhost:9090/-/healthy"},
+    "warehouse-frontend":      {"port": 80,   "health": "http://localhost:80/"},
+    "warehouse-telegram-bot":  {"port": 8000, "health": None},
+    "warehouse-robot":         {"port": 8070, "health": "http://localhost:8070/health"},
+    "warehouse-analytics":     {"port": 8090, "health": None},
+    "warehouse-uplink-bot":    {"port": 8001, "health": None},
+
+    # --- ErrorLens ---
+    "errorlens-backend":      {"port": 8002, "health": "http://localhost:8002/health"},
+    "errorlens-nginx":        {"port": 3000, "health": "http://localhost:3000/"},
+    "errorlens-generator":    {"port": None, "health": None, "container": "errorlens-generator-1"},
+    "errorlens-notification": {"port": None, "health": None, "container": "errorlens-notification-worker-1"},
+    "errorlens-automation":   {"port": None, "health": None, "container": "errorlens-automation-worker-1"},
+
+    # --- moex ---
+    "moex-bot":      {"port": None, "health": None, "container": "moex-bot"},
+    "moex-postgres": {"port": 5434, "health": None, "container": "moex-postgres"},
+
+    # --- homelab-mcp ---
+    "homelab-mcp": {"port": 8765, "health": "http://localhost:8765/health"},
+
+    # --- Scout ---
+    "scout-mcp":      {"port": 8020, "health": "http://localhost:8020/health"},
+    "scout-postgres": {"port": 5436, "health": None, "container": "scout-postgres"},
+
+    # --- RAG QA ---
+    "rag-qa": {"port": 8001, "health": "http://localhost:8001/health", "container": "rag_qa"},
+
+    # --- Инфраструктура ---
     "ollama": {"port": 11434, "health": "http://localhost:11434/"},
 }
 
-# Map short names to docker container name patterns
+# Map short names to actual docker container names (verified via docker ps)
 CONTAINER_ALIASES = {
-    "locoll": "locoll-backend",
-    "locoll-backend": "locoll-backend",
-    "locoll-nginx": "locoll-nginx",
-    "warehouse-api": "warehouse-api",
-    "warehouse-grafana": "warehouse-grafana",
-    "warehouse-prometheus": "warehouse-prometheus",
-    "warehouse-frontend": "warehouse-frontend",
-    "warehouse-telegram-bot": "warehouse-telegram-bot",
-    "warehouse-robot": "warehouse-robot",
-    "warehouse-analytics": "warehouse-analytics",
-    "warehouse-uplink-bot": "warehouse-uplink-bot",
-    "warehouse-redis": "warehouse-redis",
-    "warehouse-kafka": "warehouse-kafka",
-    "warehouse-db": "warehouse-db",
-    "errorlens": "docker-backend-1",
-    "errorlens-backend": "docker-backend-1",
-    "errorlens-nginx": "docker-nginx-1",
-    "errorlens-generator": "docker-generator-1",
-    "errorlens-notification": "docker-notification-worker-1",
-    "errorlens-automation": "docker-automation-worker-1",
-    "errorlens-collab": "docker-collab-1",
-    "errorlens-redis": "docker-redis-1",
-    "errorlens-postgres": "docker-postgres-1",
-    "errorlens-minio": "docker-minio-1",
-    "errorlens-gitlab": "errorlens-gitlab",
-    "errorlens-gitlab-runner": "errorlens-gitlab-runner",
+    # --- LocOll ---
+    "locoll":         "locoll-backend-1",
+    "locoll-backend": "locoll-backend-1",
+    "locoll-nginx":   "locoll-nginx-1",
+
+    # --- Warehouse ---
+    "warehouse":              "warehouse-api-1",
+    "warehouse-api":          "warehouse-api-1",
+    "warehouse-grafana":      "warehouse-grafana-1",
+    "warehouse-prometheus":   "warehouse-prometheus-1",
+    "warehouse-frontend":     "warehouse-frontend-1",
+    "warehouse-telegram-bot": "warehouse-telegram-bot-1",
+    "warehouse-robot":        "warehouse-robot-1",
+    "warehouse-analytics":    "warehouse-analytics-1",
+    "warehouse-uplink-bot":   "warehouse-uplink-bot-1",
+    "warehouse-redis":        "warehouse-redis-1",
+    "warehouse-kafka":        "warehouse-kafka-1",
+    "warehouse-db":           "warehouse-db-1",
+    "warehouse-pgbouncer":    "warehouse-pgbouncer-1",
+
+    # --- ErrorLens ---
+    "errorlens":              "errorlens-backend-1",
+    "errorlens-backend":      "errorlens-backend-1",
+    "errorlens-nginx":        "errorlens-nginx-1",
+    "errorlens-generator":    "errorlens-generator-1",
+    "errorlens-notification": "errorlens-notification-worker-1",
+    "errorlens-automation":   "errorlens-automation-worker-1",
+    "errorlens-collab":       "errorlens-collab-1",
+    "errorlens-redis":        "errorlens-redis-1",
+    "errorlens-postgres":     "errorlens-postgres-1",
+    "errorlens-minio":        "errorlens-minio-1",
+    "errorlens-pgbouncer":    "errorlens-pgbouncer-1",
+
+    # --- ErrorLens Monitoring ---
+    "errorlens-grafana":    "errorlens-monitoring-grafana-1",
+    "errorlens-loki":       "errorlens-monitoring-loki-1",
+    "errorlens-prometheus": "errorlens-monitoring-prometheus-1",
+    "errorlens-promtail":   "errorlens-monitoring-promtail-1",
+
+    # --- moex ---
+    "moex":          "moex-bot",
+    "moex-bot":      "moex-bot",
+    "moex-postgres": "moex-postgres",
+
+    # --- homelab-mcp ---
+    "homelab-mcp": "homelab-mcp",
+
+    # --- Scout ---
+    "scout":          "scout-mcp",
+    "scout-mcp":      "scout-mcp",
+    "scout-postgres": "scout-postgres",
+
+    # --- RAG QA ---
+    "rag-qa":  "rag_qa",
+    "rag_qa":  "rag_qa",
+    "ragqa":   "rag_qa",
+
+    # --- Инфраструктура ---
+    "ollama":       "ollama",
+    "vpn-proxy":    "vpn-proxy",
+
+    # --- Telegram боты ---
+    "homelab-bot":  "homelab-bot-homelab-bot-1",
+    "telegram-bot": "homelab-bot-homelab-bot-1",
 }
 
 
