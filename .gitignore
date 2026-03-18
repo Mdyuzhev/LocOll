@@ -16,3 +16,6 @@ data/
 # WASM (built during Docker build)
 static/app.wasm
 static/wasm_exec.js
+
+# homelab-mcp — вынесен в отдельный приватный репо (github.com/Mdyuzhev/homelab-mcp)
+mcp-server/
