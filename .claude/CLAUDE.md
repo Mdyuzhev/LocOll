@@ -4,6 +4,7 @@
 
 При открытии нового чата — запустить `/init`.
 Для полного среза сервера — `/server-status`.
+Для деплоя портала или homelab-mcp — `/deploy`.
 
 ## 🔄 ЧЕКПОИНТЫ — обязательно
 
@@ -33,6 +34,25 @@
 
 ---
 
+## 🔀 Мультиагентный режим
+
+Если задача допускает параллелизм — **используй мультиагентный режим**.
+
+Когда применять:
+- Изменения в нескольких независимых файлах/модулях
+- Обновление конфигов в нескольких проектах одновременно
+- Параллельные проверки (тесты, lint, health-check)
+- Исследование кодовой базы по нескольким направлениям
+
+Когда НЕ применять:
+- Шаги зависят друг от друга (результат одного нужен для следующего)
+- Работа с одним файлом
+- Простые линейные задачи
+
+Принцип: максимум параллельных агентов при независимых подзадачах, строгая последовательность при зависимостях.
+
+---
+
 ## Что это за проект
 
 **LocOll** — экспериментальный homelab-портал. Единый дашборд для управления и
@@ -56,17 +76,19 @@
 ## MCP-архитектура (текущее состояние)
 
 ### homelab-mcp (на сервере)
+- **Репо**: `https://github.com/Mdyuzhev/homelab-mcp` (private)
+- **Локальная копия**: `E:\LocOll\mcp-server\` (отдельный git, не трекается LocOll)
+- **На сервере**: `/opt/homelab-mcp`
+- **Деплой**: `/deploy` → [2], или `deploy_project("homelab-mcp")`
 - **URL**: `http://192.168.1.74:8765/mcp`
 - Python + FastMCP 3.1.1, Docker, `stateless_http=True`
-- 23 инструмента (включая `git_status`, `git_log` из LL-027)
-- SQLite кеш: `/data/homelab.db` (named volume), metrics TTL=30s, docker_ps TTL=15s, events retention=7d
-- `/health` endpoint не работает в FastMCP 3.1.1 — проверять через MCP initialize
+- 27 инструментов, SQLite кеш (`/data/homelab.db`, named volume)
 
-### agent-context (локально, Docker Desktop)
-- **URL**: `http://127.0.0.1:8766/mcp`
-- Python + FastMCP, Docker Desktop (python:3.12-alpine, `restart: unless-stopped`)
+### agent-context (на сервере)
+- **URL**: `http://192.168.1.74:8766/mcp`
+- Python + FastMCP, Docker (python:3.12-alpine, `restart: unless-stopped`)
+- Путь: `/opt/agent-context/`, данные: `/opt/agent-context/data/`
 - `stateless_http=True` + `_active_state` в SQLite
-- Данные: `E:\agent-context\data\` (volume mount → /data)
 - 8 инструментов, `start_session` возвращает полный контекст (LL-018):
   метрики, контейнеры, события, заметки — параллельно через `asyncio.gather`
 - `get_context` — лёгкий, только локальные данные из SQLite
@@ -83,7 +105,8 @@ events, notes — всё параллельно внутри. Не нужен о
 
 ## ⚠️ Известные проблемы
 
-- **CI runner**: GitHub Actions деплоит только портал (docker-compose.yml). homelab-mcp (docker-compose.mcp.yml) пересобирать вручную на сервере.
+- **CI runner**: GitHub Actions деплоит только портал (docker-compose.yml).
+  homelab-mcp пересобирать через `/deploy` → выбрать [2].
 - **Go WASM toolchain**: Docker скачивает Go 1.25 toolchain — увеличивает время сборки.
 
 ---
@@ -119,6 +142,11 @@ events, notes — всё параллельно внутри. Не нужен о
 | LL-025 | workflow-tools | ✅ выполнена |
 | LL-026 | fix-container-aliases | ✅ выполнена |
 | LL-027 | git-inspection-tools | ✅ выполнена |
+| LL-028 | agent-teams-research | ✅ выполнена |
+| LL-029 | complete-container-aliases | ✅ выполнена |
+| LL-030 | update-project-claude-md | ✅ выполнена |
+| LL-031 | locoll-deploy-command | ✅ выполнена |
+| LL-032 | agent-context-to-server | ✅ выполнена |
 | LL-034 | production-monitor | ✅ выполнена |
 | LL-035 | deploy-handoff | ✅ выполнена |
 | LL-036 | telegram-production-alerts | ✅ выполнена |
